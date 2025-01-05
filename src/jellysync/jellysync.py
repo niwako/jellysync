@@ -55,12 +55,14 @@ class JellySync:
     def get_seasons(self, series_id: str):
         url = f"{self.host_url}/Shows/{series_id}/Seasons"
         resp = httpx.get(url, headers=self.get_auth_header())
+        resp.raise_for_status()
         data = resp.json()
         return data["Items"]
 
     def get_episodes(self, series_id: str, season_id: str):
         url = f"{self.host_url}/Shows/{series_id}/Episodes?seasonId={season_id}"
         resp = httpx.get(url, headers=self.get_auth_header())
+        resp.raise_for_status()
         data = resp.json()
         return data["Items"]
 
@@ -75,6 +77,7 @@ class JellySync:
 
     def download(self, url: str, filename: str):
         with httpx.stream("GET", url, headers=self.get_auth_header()) as resp:
+            resp.raise_for_status()
             if self.use_content_disposition:
                 filename = parse_filename(resp.headers["Content-Disposition"])
             filesize = int(resp.headers["Content-Length"])
