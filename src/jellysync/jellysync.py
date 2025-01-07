@@ -2,7 +2,6 @@
 import os
 from dataclasses import dataclass
 from email.message import EmailMessage
-from typing import TypedDict
 from urllib.parse import urlencode
 
 import httpx
@@ -22,12 +21,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-
-class Item(TypedDict):
-    Id: str
-    Name: str
-    Type: str
-    ProductionYear: int
+from jellysync.types import FullItem, Item, is_episode, is_folder, is_movie, is_series
 
 
 def parse_filename(content_disposition: str) -> str:
@@ -51,29 +45,29 @@ class JellySync:
             os.chdir(self.media_dir)
 
     def search(self, query: str):
-        items = self.get_items(query)
+        items = self.search_items(query)
         if len(items) == 0:
             print(f'No results found for "{query}"')
             return
 
         table = Table("Type", "Title", "Year", "ID")
         for item in items:
-            if item["Type"] == "Series":
-                style = "magenta"
-            elif item["Type"] == "Episode":
-                style = "cyan"
-            elif item["Type"] == "Movie":
-                style = "green"
-            else:
-                style = None
+            name = item["Name"]
+            year = str(item.get("ProductionYear"))
 
-            table.add_row(
-                item["Type"],
-                item["Name"],
-                str(item.get("ProductionYear")),
-                item["Id"],
-                style=style,
-            )
+            if is_series(item):
+                style = "magenta"
+            elif is_episode(item):
+                style = "cyan"
+                name = f"{item['Name']} ({item['SeriesName']})"
+            elif is_movie(item):
+                style = "green"
+            elif is_folder(item):
+                style = "yellow"
+            else:
+                style = "None"
+
+            table.add_row(item["Type"], name, year, item["Id"], style=style)
         console = Console()
         console.print(table)
 
@@ -84,7 +78,12 @@ class JellySync:
 
     def download_season(self, series_id: str, season_id: str):
         episodes = self.get_episodes(series_id, season_id)
-        self.download_items(episodes)
+        for episode in episodes:
+            self.download_item(episode["Id"])
+
+    def download_item(self, item_id: str):
+        item = self.get_item(item_id)
+        self.download(item)
 
     def get_auth_header(self) -> dict[str, str]:
         return {
@@ -100,33 +99,62 @@ class JellySync:
             print(data)
         return data
 
-    def get_items(self, search_terms: str) -> list[Item]:
+    def get_item(self, item_id: str) -> FullItem:
+        url = f"{self.host_url}/Items/{item_id}"
+        return self.get(url)
+
+    def search_items(self, search_terms: str) -> list[Item]:
         params = urlencode({"searchTerm": search_terms, "recursive": True})
         url = f"{self.host_url}/Items?{params}"
         return self.get(url)["Items"]
 
-    def get_seasons(self, series_id: str):
+    def get_seasons(self, series_id: str) -> list[Item]:
         url = f"{self.host_url}/Shows/{series_id}/Seasons"
         return self.get(url)["Items"]
 
-    def get_episodes(self, series_id: str, season_id: str):
+    def get_episodes(self, series_id: str, season_id: str) -> list[Item]:
         url = f"{self.host_url}/Shows/{series_id}/Episodes?seasonId={season_id}"
         return self.get(url)["Items"]
 
-    def download_items(self, items):
-        for item in items:
-            download_url = self.make_download_url(item)
-            output_path = self.make_file_path(item)
-            self.download(download_url, output_path)
+    def make_file_path(self, item: Item):
+        if is_episode(item):
+            series = item["SeriesName"]
+            episode_id = f"S{item['ParentIndexNumber']:02d}E{item['IndexNumber']:02d}"
+            title = item["Name"]
+            ext = item["MediaSources"][0]["Container"]
+            return sanitize_filepath(
+                os.path.join(
+                    "Shows",
+                    series,
+                    f"Season {item['ParentIndexNumber']:02d}",
+                    f"{series} - {episode_id} - {title}.{ext}",
+                )
+            )
 
-    def make_download_url(self, item):
-        return f"{self.host_url}/Items/{item['Id']}/Download"
+        if is_movie(item):
+            title = item["Name"]
+            year = item["ProductionYear"]
+            ext = item["MediaSources"][0]["Container"]
+            return sanitize_filepath(
+                os.path.join(
+                    "Movies",
+                    f"{title} ({year})",
+                    f"{title} ({year}).{ext}",
+                )
+            )
 
-    def download(self, url: str, filename: str):
+        raise Exception(f'Unknown Item Type: {item["Type"]}')
+
+    def download(self, item: FullItem):
+        url = f"{self.host_url}/Items/{item['Id']}/Download"
+        if self.debug:
+            print(f"Download URL: {url}")
         with httpx.stream("GET", url, headers=self.get_auth_header()) as resp:
             resp.raise_for_status()
             if self.use_content_disposition:
                 filename = parse_filename(resp.headers["Content-Disposition"])
+            else:
+                filename = self.make_file_path(item)
             filesize = int(resp.headers["Content-Length"])
 
             if os.path.isfile(filename):
@@ -173,18 +201,3 @@ class JellySync:
                     for bytes in resp.iter_bytes():
                         progress.update(task, advance=len(bytes))
                         fp.write(bytes)
-
-    def make_file_path(self, item):
-        # TODO: Handle movies
-        series = item["SeriesName"]
-        episode_id = f"S{item['ParentIndexNumber']:02d}E{item['IndexNumber']:02d}"
-        title = item["Name"]
-        ext = item["Container"].split(",")[0]
-        return sanitize_filepath(
-            os.path.join(
-                "Shows",
-                series,
-                f"Season {item['ParentIndexNumber']:02d}",
-                f"{series} - {episode_id} - {title}.{ext}",
-            )
-        )

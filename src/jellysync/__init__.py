@@ -60,6 +60,13 @@ def main():
         help="The Jellyfin season ID, e.g. b77ea4639d6b5645891f3ab93cafaaf0",
     )
 
+    download_item_parser = subparsers.add_parser("download-item")
+    download_item_parser.set_defaults(cmd="download-item")
+    download_item_parser.add_argument(
+        "item_id",
+        help="The Jellyfin item ID, e.g. 4dd52f217a5025bee6a2614cbbf6c7d2",
+    )
+
     args = parser.parse_args()
 
     jelly_sync = JellySync(
@@ -79,6 +86,9 @@ def main():
 
     if args.cmd == "download-season":
         jelly_sync.download_season(args.series_id, args.season_id)
+
+    if args.cmd == "download-item":
+        jelly_sync.download_item(args.item_id)
 
 
 if __name__ == "__main__":
