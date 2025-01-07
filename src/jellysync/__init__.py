@@ -30,6 +30,11 @@ def main():
         help="Do a dry run without downloading",
         action="store_true",
     )
+    parser.add_argument(
+        "--debug",
+        help="Print HTTP requests and responses to and from Jellyfin server",
+        action="store_true",
+    )
 
     subparsers = parser.add_subparsers(title="subcommands", required=True)
 
@@ -63,6 +68,7 @@ def main():
         args.media_dir,
         args.use_content_disposition,
         args.dry_run,
+        args.debug,
     )
 
     if args.cmd == "search":

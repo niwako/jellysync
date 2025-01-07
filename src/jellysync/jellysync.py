@@ -44,6 +44,7 @@ class JellySync:
     media_dir: str | None
     use_content_disposition: bool
     dry_run: bool
+    debug: bool
 
     def __post_init__(self):
         if self.media_dir:
@@ -57,11 +58,21 @@ class JellySync:
 
         table = Table("Type", "Title", "Year", "ID")
         for item in items:
+            if item["Type"] == "Series":
+                style = "magenta"
+            elif item["Type"] == "Episode":
+                style = "cyan"
+            elif item["Type"] == "Movie":
+                style = "green"
+            else:
+                style = None
+
             table.add_row(
                 item["Type"],
                 item["Name"],
                 str(item.get("ProductionYear")),
                 item["Id"],
+                style=style,
             )
         console = Console()
         console.print(table)
@@ -83,27 +94,24 @@ class JellySync:
     def get(self, url):
         resp = httpx.get(url, headers=self.get_auth_header())
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        if self.debug:
+            print(f"GET {url}")
+            print(data)
+        return data
 
-    def get_items(self, query: str) -> list[Item]:
-        params = urlencode({"searchTerm": query, "recursive": True})
+    def get_items(self, search_terms: str) -> list[Item]:
+        params = urlencode({"searchTerm": search_terms, "recursive": True})
         url = f"{self.host_url}/Items?{params}"
-        data = self.get(url)
-        return data["Items"]
+        return self.get(url)["Items"]
 
     def get_seasons(self, series_id: str):
         url = f"{self.host_url}/Shows/{series_id}/Seasons"
-        resp = httpx.get(url, headers=self.get_auth_header())
-        resp.raise_for_status()
-        data = resp.json()
-        return data["Items"]
+        return self.get(url)["Items"]
 
     def get_episodes(self, series_id: str, season_id: str):
         url = f"{self.host_url}/Shows/{series_id}/Episodes?seasonId={season_id}"
-        resp = httpx.get(url, headers=self.get_auth_header())
-        resp.raise_for_status()
-        data = resp.json()
-        return data["Items"]
+        return self.get(url)["Items"]
 
     def download_items(self, items):
         for item in items:
