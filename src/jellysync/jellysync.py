@@ -2,10 +2,13 @@
 import os
 from dataclasses import dataclass
 from email.message import EmailMessage
+from typing import TypedDict
+from urllib.parse import urlencode
 
 import httpx
 from pathvalidate import sanitize_filepath
 from rich import print
+from rich.console import Console
 from rich.progress import (
     BarColumn,
     FileSizeColumn,
@@ -16,7 +19,15 @@ from rich.progress import (
     TotalFileSizeColumn,
     TransferSpeedColumn,
 )
+from rich.table import Table
 from rich.text import Text
+
+
+class Item(TypedDict):
+    Id: str
+    Name: str
+    Type: str
+    ProductionYear: int
 
 
 def parse_filename(content_disposition: str) -> str:
@@ -38,6 +49,23 @@ class JellySync:
         if self.media_dir:
             os.chdir(self.media_dir)
 
+    def search(self, query: str):
+        items = self.get_items(query)
+        if len(items) == 0:
+            print(f'No results found for "{query}"')
+            return
+
+        table = Table("Type", "Title", "Year", "ID")
+        for item in items:
+            table.add_row(
+                item["Type"],
+                item["Name"],
+                str(item.get("ProductionYear")),
+                item["Id"],
+            )
+        console = Console()
+        console.print(table)
+
     def download_series(self, series_id: str):
         seasons = self.get_seasons(series_id)
         for season in seasons:
@@ -51,6 +79,17 @@ class JellySync:
         return {
             "Authorization": f'MediaBrowser Client="jelly-sync", Token="{self.api_key}"'
         }
+
+    def get(self, url):
+        resp = httpx.get(url, headers=self.get_auth_header())
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_items(self, query: str) -> list[Item]:
+        params = urlencode({"searchTerm": query, "recursive": True})
+        url = f"{self.host_url}/Items?{params}"
+        data = self.get(url)
+        return data["Items"]
 
     def get_seasons(self, series_id: str):
         url = f"{self.host_url}/Shows/{series_id}/Seasons"

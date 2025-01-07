@@ -33,6 +33,10 @@ def main():
 
     subparsers = parser.add_subparsers(title="subcommands", required=True)
 
+    search_parser = subparsers.add_parser("search")
+    search_parser.set_defaults(cmd="search")
+    search_parser.add_argument("query", help="The search query")
+
     download_series_parser = subparsers.add_parser("download-series")
     download_series_parser.set_defaults(cmd="download-series")
     download_series_parser.add_argument(
@@ -60,6 +64,9 @@ def main():
         args.use_content_disposition,
         args.dry_run,
     )
+
+    if args.cmd == "search":
+        jelly_sync.search(args.query)
 
     if args.cmd == "download-series":
         jelly_sync.download_series(args.series_id)
