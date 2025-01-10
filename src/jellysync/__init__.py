@@ -17,6 +17,11 @@ def main():
         required=True,
     )
     parser.add_argument(
+        "--user-id",
+        help="The User ID, e.g. 2358e328747a4115be0e46a6dd35b16c",
+        required=True,
+    )
+    parser.add_argument(
         "--media-dir",
         help="The destinatin media folder, e.g. /mnt/media",
     )
@@ -72,6 +77,7 @@ def main():
     jelly_sync = JellySync(
         args.host_url,
         args.api_key,
+        args.user_id,
         args.media_dir,
         args.use_content_disposition,
         args.dry_run,

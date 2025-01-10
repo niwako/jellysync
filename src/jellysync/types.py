@@ -28,9 +28,6 @@ class Movie(FullItem): ...
 class Series(FullItem): ...
 
 
-class Folder(FullItem): ...
-
-
 def is_episode(item: Item) -> TypeGuard[Episode]:
     return item["Type"] == "Episode"
 
@@ -41,7 +38,3 @@ def is_movie(item: Item) -> TypeGuard[Movie]:
 
 def is_series(item: Item) -> TypeGuard[Series]:
     return item["Type"] == "Series"
-
-
-def is_folder(item: Item) -> TypeGuard[Folder]:
-    return item["Type"] == "Folder"

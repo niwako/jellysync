@@ -21,7 +21,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-from jellysync.types import FullItem, Item, is_episode, is_folder, is_movie, is_series
+from jellysync.types import FullItem, Item, is_episode, is_movie, is_series
 
 
 def parse_filename(content_disposition: str) -> str:
@@ -35,6 +35,7 @@ def parse_filename(content_disposition: str) -> str:
 class JellySync:
     host_url: str
     api_key: str
+    user_id: str
     media_dir: str | None
     use_content_disposition: bool
     dry_run: bool
@@ -62,8 +63,6 @@ class JellySync:
                 name = f"{item['Name']} ({item['SeriesName']})"
             elif is_movie(item):
                 style = "green"
-            elif is_folder(item):
-                style = "yellow"
             else:
                 style = None
 
@@ -91,20 +90,27 @@ class JellySync:
         }
 
     def get(self, url):
+        if self.debug:
+            print(f"GET {url}")
         resp = httpx.get(url, headers=self.get_auth_header())
         resp.raise_for_status()
         data = resp.json()
         if self.debug:
-            print(f"GET {url}")
             print(data)
         return data
 
     def get_item(self, item_id: str) -> FullItem:
-        url = f"{self.host_url}/Items/{item_id}"
+        url = f"{self.host_url}/Users/{self.user_id}/Items/{item_id}"
         return self.get(url)
 
     def search_items(self, search_terms: str) -> list[Item]:
-        params = urlencode({"searchTerm": search_terms, "recursive": True})
+        params = urlencode(
+            {
+                "searchTerm": search_terms,
+                "recursive": True,
+                "includeItemTypes": ",".join(["Movie", "Series", "Episode"]),
+            }
+        )
         url = f"{self.host_url}/Items?{params}"
         return self.get(url)["Items"]
 
