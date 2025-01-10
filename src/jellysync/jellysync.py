@@ -65,7 +65,7 @@ class JellySync:
             elif is_folder(item):
                 style = "yellow"
             else:
-                style = "None"
+                style = None
 
             table.add_row(item["Type"], name, year, item["Id"], style=style)
         console = Console()
@@ -143,7 +143,7 @@ class JellySync:
                 )
             )
 
-        raise Exception(f'Unknown Item Type: {item["Type"]}')
+        raise Exception(f"Unknown Item Type: {item['Type']}")
 
     def download(self, item: FullItem):
         url = f"{self.host_url}/Items/{item['Id']}/Download"
