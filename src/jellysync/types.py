@@ -38,3 +38,13 @@ def is_movie(item: Item) -> TypeGuard[Movie]:
 
 def is_series(item: Item) -> TypeGuard[Series]:
     return item["Type"] == "Series"
+
+
+class User(TypedDict):
+    Name: str
+    Id: str
+
+
+class AuthenticationResponse(TypedDict):
+    User: User
+    AccessToken: str

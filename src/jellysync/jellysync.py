@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
+import getpass
+import inspect
 import os
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from email.message import EmailMessage
+from typing import cast
 from urllib.parse import urlencode
 
 import httpx
+import tomllib
 from pathvalidate import sanitize_filepath
 from rich import print
 from rich.console import Console
@@ -21,7 +25,14 @@ from rich.progress import (
 from rich.table import Table
 from rich.text import Text
 
-from jellysync.types import FullItem, Item, is_episode, is_movie, is_series
+from jellysync.types import (
+    AuthenticationResponse,
+    FullItem,
+    Item,
+    is_episode,
+    is_movie,
+    is_series,
+)
 
 
 def parse_filename(content_disposition: str) -> str:
@@ -33,17 +44,51 @@ def parse_filename(content_disposition: str) -> str:
 
 @dataclass
 class JellySync:
-    host_url: str
-    api_key: str
+    host: str
+    token: str
     user_id: str
-    media_dir: str | None
-    use_content_disposition: bool
-    dry_run: bool
-    debug: bool
+    _: KW_ONLY
+    media_dir: str | None = None
+    use_content_disposition: bool = False
+    dry_run: bool = False
+    debug: bool = False
+
+    @staticmethod
+    def login(host: str, user: str, **kwargs):
+        passwd = getpass.getpass("Enter password: ")
+
+        # Build auth params and return connection details
+        resp = httpx.post(
+            f"{host}/Users/authenticatebyname",
+            json={"Username": user, "Pw": passwd},
+            headers={
+                "Authorization": 'MediaBrowser Client="JellySync", Device="JellySync", DeviceId="SmVsbHlTeW5j", Version="0.1.3"'
+            },
+        )
+        resp.raise_for_status()
+        auth = cast(AuthenticationResponse, resp.json())
+        return JellySync(host, auth["AccessToken"], auth["User"]["Id"], **kwargs)
+
+    @staticmethod
+    def load(name: str, **kwargs):
+        config_file = os.path.expanduser("~/.jellysync")
+        if not os.path.exists(config_file):
+            raise FileNotFoundError(f"Config file not found: {config_file}")
+        with open(config_file, "rb") as fp:
+            config = tomllib.load(fp)
+        kwargs.update(config)
+        kwargs.update(config[name])
+        return JellySync(
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k in inspect.signature(JellySync).parameters
+            }
+        )
 
     def __post_init__(self):
         if self.media_dir:
-            os.chdir(self.media_dir)
+            os.chdir(os.path.expanduser(self.media_dir))
 
     def search(self, query: str):
         items = self.search_items(query)
@@ -86,7 +131,7 @@ class JellySync:
 
     def get_auth_header(self) -> dict[str, str]:
         return {
-            "Authorization": f'MediaBrowser Client="jelly-sync", Token="{self.api_key}"'
+            "Authorization": f'MediaBrowser Client="JellySync", Token="{self.token}"'
         }
 
     def get(self, url):
@@ -100,7 +145,7 @@ class JellySync:
         return data
 
     def get_item(self, item_id: str) -> FullItem:
-        url = f"{self.host_url}/Users/{self.user_id}/Items/{item_id}"
+        url = f"{self.host}/Users/{self.user_id}/Items/{item_id}"
         return self.get(url)
 
     def search_items(self, search_terms: str) -> list[Item]:
@@ -111,15 +156,15 @@ class JellySync:
                 "includeItemTypes": ",".join(["Movie", "Series", "Episode"]),
             }
         )
-        url = f"{self.host_url}/Items?{params}"
+        url = f"{self.host}/Items?{params}"
         return self.get(url)["Items"]
 
     def get_seasons(self, series_id: str) -> list[Item]:
-        url = f"{self.host_url}/Shows/{series_id}/Seasons"
+        url = f"{self.host}/Shows/{series_id}/Seasons"
         return self.get(url)["Items"]
 
     def get_episodes(self, series_id: str, season_id: str) -> list[Item]:
-        url = f"{self.host_url}/Shows/{series_id}/Episodes?seasonId={season_id}"
+        url = f"{self.host}/Shows/{series_id}/Episodes?seasonId={season_id}"
         return self.get(url)["Items"]
 
     def make_file_path(self, item: Item):
@@ -152,7 +197,7 @@ class JellySync:
         raise Exception(f"Unknown Item Type: {item['Type']}")
 
     def download(self, item: FullItem):
-        url = f"{self.host_url}/Items/{item['Id']}/Download"
+        url = f"{self.host}/Items/{item['Id']}/Download"
         if self.debug:
             print(f"Download URL: {url}")
         with httpx.stream("GET", url, headers=self.get_auth_header()) as resp:

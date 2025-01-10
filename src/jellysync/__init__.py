@@ -6,20 +6,30 @@ from .jellysync import JellySync
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--host-url",
+
+    conf_group = parser.add_mutually_exclusive_group(required=True)
+    conf_group.add_argument(
+        "--config",
+        help="The name of the config to use from ~/.jellysync",
+    )
+    conf_group.add_argument(
+        "--host",
         help="The Jellyfin host URL, e.g. https://jellyfin.myhost.com",
-        required=True,
     )
-    parser.add_argument(
-        "--api-key",
+
+    auth_group = parser.add_mutually_exclusive_group()
+    auth_group.add_argument(
+        "--user",
+        help="The User name, e.g. jellyfin",
+    )
+    auth_group.add_argument(
+        "--token",
         help="The Jellyfin API key, e.g. cab52cae2ffe4683a6a8d61a8c568e32",
-        required=True,
     )
+
     parser.add_argument(
         "--user-id",
         help="The User ID, e.g. 2358e328747a4115be0e46a6dd35b16c",
-        required=True,
     )
     parser.add_argument(
         "--media-dir",
@@ -74,15 +84,37 @@ def main():
 
     args = parser.parse_args()
 
-    jelly_sync = JellySync(
-        args.host_url,
-        args.api_key,
-        args.user_id,
-        args.media_dir,
-        args.use_content_disposition,
-        args.dry_run,
-        args.debug,
-    )
+    if args.config:
+        jelly_sync = JellySync.load(
+            args.config,
+            media_dir=args.media_dir,
+            use_content_disposition=args.use_content_disposition,
+            dry_run=args.dry_run,
+            debug=args.debug,
+        )
+    elif args.token:
+        if args.user_id is None:
+            parser.error("--user-id is required if --token is used")
+        jelly_sync = JellySync(
+            args.host,
+            args.token,
+            args.user_id,
+            media_dir=args.media_dir,
+            use_content_disposition=args.use_content_disposition,
+            dry_run=args.dry_run,
+            debug=args.debug,
+        )
+    else:
+        if args.user is None:
+            parser.error("--user is required if using password authentication")
+        jelly_sync = JellySync.login(
+            args.host,
+            args.user,
+            media_dir=args.media_dir,
+            use_content_disposition=args.use_content_disposition,
+            dry_run=args.dry_run,
+            debug=args.debug,
+        )
 
     if args.cmd == "search":
         jelly_sync.search(args.query)
