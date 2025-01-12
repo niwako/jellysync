@@ -1,31 +1,33 @@
-from typing import TypedDict, TypeGuard
-
-
-class Item(TypedDict):
-    Id: str
-    Name: str
-    Type: str
-    ProductionYear: int
+from typing import Literal, TypedDict, TypeGuard
 
 
 class MediaSource(TypedDict):
     Container: str
 
 
-class FullItem(Item):
-    MediaSources: list[MediaSource]
+class Item(TypedDict):
+    Id: str
+    Name: str
+    Type: Literal["Episode", "Movie", "Series", "Season"]
+    ProductionYear: int
 
 
-class Episode(FullItem):
+class Episode(Item):
     SeriesName: str
     IndexNumber: int
     ParentIndexNumber: int
+    MediaSources: list[MediaSource]
 
 
-class Movie(FullItem): ...
+class Movie(Item):
+    MediaSources: list[MediaSource]
 
 
-class Series(FullItem): ...
+class Season(Item):
+    SeriesId: str
+
+
+class Series(Item): ...
 
 
 def is_episode(item: Item) -> TypeGuard[Episode]:
@@ -34,6 +36,10 @@ def is_episode(item: Item) -> TypeGuard[Episode]:
 
 def is_movie(item: Item) -> TypeGuard[Movie]:
     return item["Type"] == "Movie"
+
+
+def is_season(item: Item) -> TypeGuard[Season]:
+    return item["Type"] == "Season"
 
 
 def is_series(item: Item) -> TypeGuard[Series]:

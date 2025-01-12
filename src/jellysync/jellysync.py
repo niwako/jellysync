@@ -27,10 +27,12 @@ from rich.text import Text
 
 from jellysync.types import (
     AuthenticationResponse,
-    FullItem,
+    Episode,
     Item,
+    Movie,
     is_episode,
     is_movie,
+    is_season,
     is_series,
 )
 
@@ -90,12 +92,7 @@ class JellySync:
         if self.media_dir:
             os.chdir(os.path.expanduser(self.media_dir))
 
-    def search(self, query: str):
-        items = self.search_items(query)
-        if len(items) == 0:
-            print(f'No results found for "{query}"')
-            return
-
+    def render_table(self, items: list[Item]):
         table = Table("Type", "Title", "Year", "ID")
         for item in items:
             name = item["Name"]
@@ -115,6 +112,24 @@ class JellySync:
         console = Console()
         console.print(table)
 
+    def search(self, query: str):
+        items = self.search_items(query)
+        if len(items) == 0:
+            print(f'No results found for "{query}"')
+            return
+        self.render_table(items)
+
+    def download_title(self, query: str):
+        items = self.search_items(query)
+        if len(items) == 0:
+            print(f'No media found for "{query}"')
+            return
+        if len(items) > 1:
+            print(f'Multiple matches found for "{query}". Download using the Item ID:')
+            self.render_table(items)
+            return
+        self.download_item(items[0]["Id"])
+
     def download_series(self, series_id: str):
         seasons = self.get_seasons(series_id)
         for season in seasons:
@@ -127,7 +142,14 @@ class JellySync:
 
     def download_item(self, item_id: str):
         item = self.get_item(item_id)
-        self.download(item)
+        if is_episode(item) or is_movie(item):
+            self.download(item)
+        elif is_season(item):
+            self.download_season(item["SeriesId"], item["Id"])
+        elif is_series(item):
+            self.download_series(item["Id"])
+        else:
+            raise Exception(f"Unknown item type for {item_id}: {item['Type']}")
 
     def get_auth_header(self) -> dict[str, str]:
         return {
@@ -144,7 +166,7 @@ class JellySync:
             print(data)
         return data
 
-    def get_item(self, item_id: str) -> FullItem:
+    def get_item(self, item_id: str) -> Item:
         url = f"{self.host}/Users/{self.user_id}/Items/{item_id}"
         return self.get(url)
 
@@ -167,7 +189,7 @@ class JellySync:
         url = f"{self.host}/Shows/{series_id}/Episodes?seasonId={season_id}"
         return self.get(url)["Items"]
 
-    def make_file_path(self, item: Item):
+    def make_file_path(self, item: Episode | Movie):
         if is_episode(item):
             series = item["SeriesName"]
             episode_id = f"S{item['ParentIndexNumber']:02d}E{item['IndexNumber']:02d}"
@@ -196,7 +218,7 @@ class JellySync:
 
         raise Exception(f"Unknown Item Type: {item['Type']}")
 
-    def download(self, item: FullItem):
+    def download(self, item: Movie | Episode):
         url = f"{self.host}/Items/{item['Id']}/Download"
         if self.debug:
             print(f"Download URL: {url}")
