@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 
 from .jellysync import JellySync
 
@@ -46,13 +47,7 @@ def main():
 
     download_parser = subparsers.add_parser("download")
     download_parser.set_defaults(cmd="download")
-    download_parser.add_argument("query", help="The title of the media")
-
-    download_item_parser = subparsers.add_parser("download-item")
-    download_item_parser.set_defaults(cmd="download-item")
-    download_item_parser.add_argument(
-        "item-id", help="The Jellyfin item ID (series, season or episode)"
-    )
+    download_parser.add_argument("query", help="The item ID or title of the media")
 
     args = parser.parse_args()
 
@@ -95,10 +90,10 @@ def main():
         jelly_sync.search(args.query)
 
     if args.cmd == "download":
-        jelly_sync.download_title(args.query)
-
-    if args.cmd == "download-item":
-        jelly_sync.download_item(args.item_id)
+        if re.match(r"[0-9a-f]{32}", args.query):
+            jelly_sync.download_item(args.query)
+        else:
+            jelly_sync.download_title(args.query)
 
 
 if __name__ == "__main__":
