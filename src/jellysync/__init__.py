@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import re
 
 from .jellysync import JellySync
 
@@ -9,7 +8,7 @@ from .jellysync import JellySync
 def main():
     parser = argparse.ArgumentParser()
 
-    conf_group = parser.add_mutually_exclusive_group(required=True)
+    conf_group = parser.add_mutually_exclusive_group()
     conf_group.add_argument("--config", help="The config name to use from ~/.jellysync")
     conf_group.add_argument("--host", help="The Jellyfin host URL")
 
@@ -47,36 +46,37 @@ def main():
 
     download_parser = subparsers.add_parser("download")
     download_parser.set_defaults(cmd="download")
-    download_parser.add_argument("query", help="The item ID or title of the media")
+    download_parser.add_argument("item-id", help="The Jellyfin item ID")
 
     args = parser.parse_args()
 
-    if args.config:
+    if args.host:
+        if args.token:
+            if args.user_id is None:
+                parser.error("--user-id is required if --token is used")
+            jelly_sync = JellySync(
+                args.host,
+                args.token,
+                args.user_id,
+                media_dir=args.media_dir,
+                use_content_disposition=args.use_content_disposition,
+                dry_run=args.dry_run,
+                debug=args.debug,
+            )
+        else:
+            if args.user is None:
+                parser.error("--user is required if using password authentication")
+            jelly_sync = JellySync.login(
+                args.host,
+                args.user,
+                media_dir=args.media_dir,
+                use_content_disposition=args.use_content_disposition,
+                dry_run=args.dry_run,
+                debug=args.debug,
+            )
+    else:
         jelly_sync = JellySync.load(
             args.config,
-            media_dir=args.media_dir,
-            use_content_disposition=args.use_content_disposition,
-            dry_run=args.dry_run,
-            debug=args.debug,
-        )
-    elif args.token:
-        if args.user_id is None:
-            parser.error("--user-id is required if --token is used")
-        jelly_sync = JellySync(
-            args.host,
-            args.token,
-            args.user_id,
-            media_dir=args.media_dir,
-            use_content_disposition=args.use_content_disposition,
-            dry_run=args.dry_run,
-            debug=args.debug,
-        )
-    else:
-        if args.user is None:
-            parser.error("--user is required if using password authentication")
-        jelly_sync = JellySync.login(
-            args.host,
-            args.user,
             media_dir=args.media_dir,
             use_content_disposition=args.use_content_disposition,
             dry_run=args.dry_run,
@@ -90,10 +90,7 @@ def main():
         jelly_sync.search(args.query)
 
     if args.cmd == "download":
-        if re.match(r"[0-9a-f]{32}", args.query):
-            jelly_sync.download_item(args.query)
-        else:
-            jelly_sync.download_title(args.query)
+        jelly_sync.download_item(args.item_id)
 
 
 if __name__ == "__main__":

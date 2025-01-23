@@ -72,14 +72,17 @@ class JellySync:
         return JellySync(host, auth["AccessToken"], auth["User"]["Id"], **kwargs)
 
     @staticmethod
-    def load(name: str, **kwargs):
+    def load(name: str | None, **kwargs):
         config_file = os.path.expanduser("~/.jellysync")
         if not os.path.exists(config_file):
             raise FileNotFoundError(f"Config file not found: {config_file}")
         with open(config_file, "rb") as fp:
             config = tomllib.load(fp)
         kwargs.update(config)
-        kwargs.update(config[name])
+        if name is not None:
+            kwargs.update(config[name])
+        elif "default" in config:
+            kwargs.update(config[config["default"]])
         return JellySync(
             **{
                 k: v
@@ -118,17 +121,6 @@ class JellySync:
             print(f'No results found for "{query}"')
             return
         self.render_table(items)
-
-    def download_title(self, query: str):
-        items = self.search_items(query)
-        if len(items) == 0:
-            print(f'No media found for "{query}"')
-            return
-        if len(items) > 1:
-            print(f'Multiple matches found for "{query}". Download using the Item ID:')
-            self.render_table(items)
-            return
-        self.download_item(items[0]["Id"])
 
     def download_series(self, series_id: str):
         seasons = self.get_seasons(series_id)
