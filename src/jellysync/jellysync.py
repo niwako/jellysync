@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-import getpass
-import inspect
 import os
 from dataclasses import KW_ONLY, dataclass
 from email.message import EmailMessage
-from typing import cast
 from urllib.parse import urlencode
 
 import httpx
-import tomllib
 from pathvalidate import sanitize_filepath
 from rich import print
 from rich.console import Console
@@ -26,7 +22,6 @@ from rich.table import Table
 from rich.text import Text
 
 from jellysync.types import (
-    AuthenticationResponse,
     Episode,
     Item,
     Movie,
@@ -54,42 +49,6 @@ class JellySync:
     use_content_disposition: bool = False
     dry_run: bool = False
     debug: bool = False
-
-    @staticmethod
-    def login(host: str, user: str, **kwargs):
-        passwd = getpass.getpass("Enter password: ")
-
-        # Build auth params and return connection details
-        resp = httpx.post(
-            f"{host}/Users/authenticatebyname",
-            json={"Username": user, "Pw": passwd},
-            headers={
-                "Authorization": 'MediaBrowser Client="JellySync", Device="JellySync", DeviceId="SmVsbHlTeW5j", Version="0.1.3"'
-            },
-        )
-        resp.raise_for_status()
-        auth = cast(AuthenticationResponse, resp.json())
-        return JellySync(host, auth["AccessToken"], auth["User"]["Id"], **kwargs)
-
-    @staticmethod
-    def load(name: str | None, **kwargs):
-        config_file = os.path.expanduser("~/.jellysync")
-        if not os.path.exists(config_file):
-            raise FileNotFoundError(f"Config file not found: {config_file}")
-        with open(config_file, "rb") as fp:
-            config = tomllib.load(fp)
-        kwargs.update(config)
-        if name is not None:
-            kwargs.update(config[name])
-        elif "default" in config:
-            kwargs.update(config[config["default"]])
-        return JellySync(
-            **{
-                k: v
-                for k, v in kwargs.items()
-                if k in inspect.signature(JellySync).parameters
-            }
-        )
 
     def __post_init__(self):
         if self.media_dir:
