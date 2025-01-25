@@ -2,8 +2,6 @@
 import argparse
 import json
 
-from rich import print
-
 from .config import JellySyncConfigs
 from .jellysync import JellySync
 

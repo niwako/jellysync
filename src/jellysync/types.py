@@ -3,6 +3,7 @@ from typing import Literal, TypedDict, TypeGuard
 
 class MediaSource(TypedDict):
     Container: str
+    Size: int
 
 
 class Item(TypedDict):

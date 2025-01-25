@@ -173,6 +173,20 @@ class JellySync:
         url = f"{self.host}/Items/{item['Id']}/Download"
         if self.debug:
             print(f"Download URL: {url}")
+
+        if not self.use_content_disposition:
+            filename = self.make_file_path(item)
+            filesize = item["MediaSources"][0]["Size"]
+            if os.path.isfile(filename):
+                existing_filesize = os.stat(filename).st_size
+                if filesize == existing_filesize:
+                    text = Text()
+                    text.append("Skipping ", style="bold red")
+                    text.append(filename, style="bold")
+                    text.append(" because file already exists", style="bold blue")
+                    print(text)
+                    return
+
         with httpx.stream("GET", url, headers=self.get_auth_header()) as resp:
             resp.raise_for_status()
             if self.use_content_disposition:
