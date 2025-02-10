@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
 import argparse
+import asyncio
 import json
+import signal
+import sys
 
 from .config import JellySyncConfigs
 from .jellysync import JellySync
 
 
-def main():
+def signal_handler(sig, frame):
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, signal_handler)
+
+
+async def run():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--config", help="The config name to use from ~/.jellysync")
@@ -78,16 +88,21 @@ def main():
     )
 
     if args.cmd == "info":
-        print(json.dumps(jelly_sync.get_item(args.item_id)))
+        item = await jelly_sync.get_item(args.item_id)
+        print(json.dumps(item))
         return
 
     if args.cmd == "search":
-        jelly_sync.search(args.query)
+        await jelly_sync.search(args.query)
         return
 
     if args.cmd == "download":
-        jelly_sync.download_item(args.item_id)
+        await jelly_sync.download_item(args.item_id)
         return
+
+
+def main():
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
