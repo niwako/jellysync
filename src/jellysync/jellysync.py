@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import asyncio
 import os
 from dataclasses import KW_ONLY, dataclass
 from email.message import EmailMessage
@@ -10,12 +11,11 @@ from rich import print
 from rich.console import Console
 from rich.progress import (
     BarColumn,
-    FileSizeColumn,
+    DownloadColumn,
     Progress,
     TaskProgressColumn,
     TextColumn,
     TimeRemainingColumn,
-    TotalFileSizeColumn,
     TransferSpeedColumn,
 )
 from rich.table import Table
@@ -30,6 +30,14 @@ from jellysync.types import (
     is_season,
     is_series,
 )
+
+console = Console()
+client = httpx.AsyncClient()
+
+
+async def gather(tasks):
+    results = await asyncio.gather(*tasks)
+    return [item for collection in results for item in collection]
 
 
 def parse_filename(content_disposition: str) -> str:
@@ -53,6 +61,7 @@ class JellySync:
     def __post_init__(self):
         if self.media_dir:
             os.chdir(os.path.expanduser(self.media_dir))
+        self.semaphore = asyncio.Semaphore(20)
 
     def render_table(self, items: list[Item]):
         table = Table("Type", "Title", "Year", "ID")
@@ -71,57 +80,55 @@ class JellySync:
                 style = None
 
             table.add_row(item["Type"], name, year, item["Id"], style=style)
-        console = Console()
         console.print(table)
 
-    def search(self, query: str):
-        items = self.search_items(query)
+    async def search(self, query: str):
+        items = await self.search_items(query)
         if len(items) == 0:
             print(f'No results found for "{query}"')
             return
         self.render_table(items)
 
-    def download_series(self, series_id: str):
-        seasons = self.get_seasons(series_id)
-        for season in seasons:
-            self.download_season(series_id, season["Id"])
-
-    def download_season(self, series_id: str, season_id: str):
-        episodes = self.get_episodes(series_id, season_id)
-        for episode in episodes:
-            self.download_item(episode["Id"])
-
-    def download_item(self, item_id: str):
-        item = self.get_item(item_id)
-        if is_episode(item) or is_movie(item):
+    async def download_item(self, item_id: str):
+        with console.status("Collecting metadata..."):
+            items = await self.collect(item_id)
+        console.print(f"[bold green]✔[/bold green] Collected {len(items)} items.")
+        for item in items:
             self.download(item)
-        elif is_season(item):
-            self.download_season(item["SeriesId"], item["Id"])
-        elif is_series(item):
-            self.download_series(item["Id"])
-        else:
-            raise Exception(f"Unknown item type for {item_id}: {item['Type']}")
 
     def get_auth_header(self) -> dict[str, str]:
         return {
             "Authorization": f'MediaBrowser Client="JellySync", Token="{self.token}"'
         }
 
-    def get(self, url):
+    async def get(self, url):
         if self.debug:
             print(f"GET {url}")
-        resp = httpx.get(url, headers=self.get_auth_header())
+        async with self.semaphore:
+            resp = await client.get(url, headers=self.get_auth_header())
         resp.raise_for_status()
         data = resp.json()
         if self.debug:
             print(data)
         return data
 
-    def get_item(self, item_id: str) -> Item:
+    async def get_item(self, item_id: str) -> Item:
         url = f"{self.host}/Users/{self.user_id}/Items/{item_id}"
-        return self.get(url)
+        return await self.get(url)
 
-    def search_items(self, search_terms: str) -> list[Item]:
+    async def collect(self, item_id: str) -> list[Episode | Movie]:
+        item = await self.get_item(item_id)
+        if is_episode(item) or is_movie(item):
+            return [item]
+        if is_season(item):
+            episodes = await self.get_episodes(item["SeriesId"], item["Id"])
+            return await gather([self.collect(episode["Id"]) for episode in episodes])
+        if is_series(item):
+            seasons = await self.get_seasons(item["Id"])
+            return await gather([self.collect(season["Id"]) for season in seasons])
+        raise Exception(f"Unknown item type for {item_id}: {item['Type']}")
+
+    async def search_items(self, search_terms: str) -> list[Item]:
         params = urlencode(
             {
                 "searchTerm": search_terms,
@@ -130,15 +137,18 @@ class JellySync:
             }
         )
         url = f"{self.host}/Items?{params}"
-        return self.get(url)["Items"]
+        resp = await self.get(url)
+        return resp["Items"]
 
-    def get_seasons(self, series_id: str) -> list[Item]:
+    async def get_seasons(self, series_id: str) -> list[Item]:
         url = f"{self.host}/Shows/{series_id}/Seasons"
-        return self.get(url)["Items"]
+        resp = await self.get(url)
+        return resp["Items"]
 
-    def get_episodes(self, series_id: str, season_id: str) -> list[Item]:
+    async def get_episodes(self, series_id: str, season_id: str) -> list[Item]:
         url = f"{self.host}/Shows/{series_id}/Episodes?seasonId={season_id}"
-        return self.get(url)["Items"]
+        resp = await self.get(url)
+        return resp["Items"]
 
     def make_file_path(self, item: Episode | Movie):
         if is_episode(item):
@@ -229,9 +239,7 @@ class JellySync:
                     TaskProgressColumn(),
                     TimeRemainingColumn(),
                     TextColumn("remaining"),
-                    FileSizeColumn(),
-                    TextColumn("of"),
-                    TotalFileSizeColumn(),
+                    DownloadColumn(),
                     TextColumn("at"),
                     TransferSpeedColumn(),
                 ) as progress:
