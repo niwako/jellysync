@@ -54,7 +54,6 @@ class JellySync:
     user_id: str
     _: KW_ONLY
     media_dir: str | None = None
-    use_content_disposition: bool = False
     dry_run: bool = False
     debug: bool = False
 
@@ -184,36 +183,21 @@ class JellySync:
         if self.debug:
             print(f"Download URL: {url}")
 
-        if not self.use_content_disposition:
-            filename = self.make_file_path(item)
-            filesize = item["MediaSources"][0]["Size"]
-            if os.path.isfile(filename):
-                existing_filesize = os.stat(filename).st_size
-                if filesize == existing_filesize:
-                    text = Text()
-                    text.append("Skipping ", style="bold red")
-                    text.append(filename, style="bold")
-                    text.append(" because file already exists", style="bold blue")
-                    print(text)
-                    return
+        filename = self.make_file_path(item)
+        filesize = item["MediaSources"][0]["Size"]
+        if os.path.isfile(filename):
+            existing_filesize = os.stat(filename).st_size
+            if filesize == existing_filesize:
+                text = Text()
+                text.append("Skipping ", style="bold red")
+                text.append(filename, style="bold")
+                text.append(" because file already exists", style="bold blue")
+                print(text)
+                return
 
         with httpx.stream("GET", url, headers=self.get_auth_header()) as resp:
             resp.raise_for_status()
-            if self.use_content_disposition:
-                filename = parse_filename(resp.headers["Content-Disposition"])
-            else:
-                filename = self.make_file_path(item)
             filesize = int(resp.headers["Content-Length"])
-
-            if os.path.isfile(filename):
-                existing_filesize = os.stat(filename).st_size
-                if filesize == existing_filesize:
-                    text = Text()
-                    text.append("Skipping ", style="bold red")
-                    text.append(filename, style="bold")
-                    text.append(" because file already exists", style="bold blue")
-                    print(text)
-                    return
 
             if self.dry_run:
                 text = Text()

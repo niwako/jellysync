@@ -26,11 +26,6 @@ async def run():
     parser.add_argument("--media-dir", help="The output folder, e.g. /mnt/media")
 
     parser.add_argument(
-        "--use-content-disposition",
-        help="Use the filename given by content disposition instead of metadata",
-        action="store_true",
-    )
-    parser.add_argument(
         "--dry-run",
         help="Do a dry run without downloading",
         action="store_true",
@@ -82,7 +77,6 @@ async def run():
         config.token,
         config.user_id,
         media_dir=config.media_dir,
-        use_content_disposition=args.use_content_disposition,
         dry_run=args.dry_run,
         debug=args.debug,
     )
