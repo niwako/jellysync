@@ -186,14 +186,12 @@ class JellySync:
         filename = self.make_file_path(item)
         filesize = item["MediaSources"][0]["Size"]
         if os.path.isfile(filename):
-            existing_filesize = os.stat(filename).st_size
-            if filesize == existing_filesize:
-                text = Text()
-                text.append("Skipping ", style="bold red")
-                text.append(filename, style="bold")
-                text.append(" because file already exists", style="bold blue")
-                print(text)
-                return
+            text = Text()
+            text.append("Skipping ", style="bold red")
+            text.append(filename, style="bold")
+            text.append(" because file already exists", style="bold blue")
+            print(text)
+            return
 
         with httpx.stream("GET", url, headers=self.get_auth_header()) as resp:
             resp.raise_for_status()
@@ -216,7 +214,7 @@ class JellySync:
             if folder:
                 os.makedirs(folder, exist_ok=True)
 
-            with open(filename, "wb") as fp:
+            with open(f"{filename}.tmp", "wb") as fp:
                 with Progress(
                     TextColumn("[progress.description]{task.description}"),
                     BarColumn(),
@@ -231,3 +229,4 @@ class JellySync:
                     for bytes in resp.iter_bytes():
                         progress.update(task, advance=len(bytes))
                         fp.write(bytes)
+            os.rename(f"{filename}.tmp", filename)
