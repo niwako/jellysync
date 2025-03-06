@@ -32,7 +32,15 @@ from jellysync.types import (
 )
 
 console = Console()
-client = httpx.AsyncClient()
+client = httpx.AsyncClient(
+    transport=httpx.AsyncHTTPTransport(
+        retries=5,
+        limits=httpx.Limits(
+            max_connections=20,
+        ),
+    ),
+    timeout=30,
+)
 
 
 async def gather(tasks):
