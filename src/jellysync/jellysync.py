@@ -89,8 +89,8 @@ class JellySync:
             table.add_row(item["Type"], name, year, item["Id"], style=style)
         console.print(table)
 
-    async def search(self, query: str):
-        items = await self.search_items(query)
+    async def search(self, query: str, types: list[str]):
+        items = await self.search_items(query, types)
         if len(items) == 0:
             print(f'No results found for "{query}"')
             return
@@ -135,12 +135,12 @@ class JellySync:
             return await gather([self.collect(season["Id"]) for season in seasons])
         raise Exception(f"Unknown item type for {item_id}: {item['Type']}")
 
-    async def search_items(self, search_terms: str) -> list[Item]:
+    async def search_items(self, search_terms: str, types: list[str]) -> list[Item]:
         params = urlencode(
             {
                 "searchTerm": search_terms,
                 "recursive": True,
-                "includeItemTypes": ",".join(["Movie", "Series", "Episode"]),
+                "includeItemTypes": ",".join(types),
             }
         )
         url = f"{self.host}/Items?{params}"
