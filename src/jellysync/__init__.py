@@ -52,6 +52,11 @@ async def run():
     search_parser = subparsers.add_parser("search")
     search_parser.set_defaults(cmd="search")
     search_parser.add_argument("query", help="The search query")
+    search_parser.add_argument(
+        "--types",
+        action="append",
+        help="Filter on type (e.g., Episode, Movie)",
+    )
 
     download_parser = subparsers.add_parser("download")
     download_parser.set_defaults(cmd="download")
@@ -87,7 +92,8 @@ async def run():
         return
 
     if args.cmd == "search":
-        await jelly_sync.search(args.query)
+        types = ["Movie", "Series", "Episode"] if args.types is None else args.types
+        await jelly_sync.search(args.query, types)
         return
 
     if args.cmd == "download":
