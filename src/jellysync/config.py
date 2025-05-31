@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import tomllib
 from dataclasses import dataclass, field
 from typing import TypedDict, cast
 from urllib.parse import urlparse
 
 import httpx
 import toml
-import tomllib
 from rich.prompt import Confirm, Prompt
 
 
@@ -105,8 +105,8 @@ class JellySyncConfigs:
     ):
         if host is None:
             host = Prompt.ask("Enter Jellyfin server URL")
-        hostname = urlparse(host).hostname
-        if hostname is None:
+        url = urlparse(host)
+        if url.hostname is None:
             raise Exception(f"Failed to parse hostname from URL: {host}")
         if user is None:
             user = Prompt.ask("Enter login")
@@ -114,7 +114,7 @@ class JellySyncConfigs:
 
         # Build auth params and return connection details
         resp = httpx.post(
-            f"{host}/Users/authenticatebyname",
+            f"{url.scheme}://{url.hostname}/Users/authenticatebyname",
             json={"Username": user, "Pw": passwd},
             headers={
                 "Authorization": 'MediaBrowser Client="JellySync", Device="JellySync", DeviceId="SmVsbHlTeW5j", Version="0.1.3"'
@@ -124,7 +124,7 @@ class JellySyncConfigs:
         auth = cast(AuthenticationResponse, resp.json())
 
         if name is None:
-            for part in hostname.split("."):
+            for part in url.hostname.split("."):
                 if part != "jellyfin" and len(part) > 3:
                     name = Prompt.ask(
                         "Enter a name for this configuration", default=part
@@ -132,7 +132,9 @@ class JellySyncConfigs:
                     break
             else:
                 name = Prompt.ask("Enter a name for this configuration")
-        self.configs[name] = ServerConfig(host, auth["User"]["Id"], auth["AccessToken"])
+        self.configs[name] = ServerConfig(
+            f"{url.scheme}://{url.hostname}", auth["User"]["Id"], auth["AccessToken"]
+        )
 
         is_default = Confirm.ask(f"Make {name} the default Jellyfin server?")
         if is_default:
