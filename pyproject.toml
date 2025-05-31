@@ -1,6 +1,6 @@
 [project]
 name = "jellysync"
-version = "0.6.1"
+version = "0.6.2"
 description = "Sync content between Jellyfin servers"
 readme = "README.md"
 requires-python = ">=3.11"

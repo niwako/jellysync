@@ -2,6 +2,7 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
 import asyncio
+import importlib.metadata
 import json
 import signal
 import sys
@@ -40,6 +41,9 @@ async def run():
     )
 
     subparsers = parser.add_subparsers(title="subcommands", required=True)
+
+    version_parser = subparsers.add_parser("version")
+    version_parser.set_defaults(cmd="version")
 
     login_parser = subparsers.add_parser("login")
     login_parser.set_defaults(cmd="login")
@@ -83,6 +87,10 @@ async def run():
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
+
+    if args.cmd == "version":
+        print(importlib.metadata.version("jellysync"))
+        return
 
     configs = JellySyncConfigs.load()
 
