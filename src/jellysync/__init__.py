@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 import argparse
 import asyncio
 import json
 import signal
 import sys
+
+import argcomplete
 
 from .config import JellySyncConfigs
 from .jellysync import JellySync
@@ -78,6 +81,7 @@ async def run():
     download_parser.set_defaults(cmd="download")
     download_parser.add_argument("item_id", help="The Jellyfin item ID")
 
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     configs = JellySyncConfigs.load()
