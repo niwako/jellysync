@@ -49,13 +49,29 @@ async def run():
     info_parser.set_defaults(cmd="info")
     info_parser.add_argument("item_id", help="The Jellyfin item ID")
 
+    list_parser = subparsers.add_parser("list")
+    list_parser.set_defaults(cmd="list")
+    list_parser.add_argument(
+        "--movie", dest="types", action="append_const", const="Movie"
+    )
+    list_parser.add_argument(
+        "--series", dest="types", action="append_const", const="Series"
+    )
+    list_parser.add_argument(
+        "--episode", dest="types", action="append_const", const="Episode"
+    )
+
     search_parser = subparsers.add_parser("search")
     search_parser.set_defaults(cmd="search")
     search_parser.add_argument("query", help="The search query")
     search_parser.add_argument(
-        "--types",
-        action="append",
-        help="Filter on type (e.g., Episode, Movie)",
+        "--movie", dest="types", action="append_const", const="Movie"
+    )
+    search_parser.add_argument(
+        "--series", dest="types", action="append_const", const="Series"
+    )
+    search_parser.add_argument(
+        "--episode", dest="types", action="append_const", const="Episode"
     )
 
     download_parser = subparsers.add_parser("download")
@@ -89,6 +105,11 @@ async def run():
     if args.cmd == "info":
         item = await jelly_sync.get_item(args.item_id)
         print(json.dumps(item))
+        return
+
+    if args.cmd == "list":
+        types = ["Movie", "Series"] if args.types is None else args.types
+        await jelly_sync.search("", types)
         return
 
     if args.cmd == "search":
